@@ -70,7 +70,18 @@ def publish(out_dir: Path) -> Path:
     validate(SENTENCE)
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "entry.txt"
-    out_path.write_text(SENTENCE + "\n", encoding="utf-8")
+    # Write atomically: a crash mid-write must never leave a
+    # half-written entry.txt behind for the judge to read.
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=out_dir, delete=False, prefix=".entry-"
+    ) as tmp:
+        tmp.write(SENTENCE + "\n")
+        tmp_path = Path(tmp.name)
+    try:
+        os.replace(tmp_path, out_path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
     published = out_path.read_text(encoding="utf-8")
     if published != SENTENCE + "\n":
         raise SystemExit("published entry does not match the sentence")
